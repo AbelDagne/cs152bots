@@ -17,6 +17,10 @@ class Report:
     START_KEYWORD = "report"
     CANCEL_KEYWORD = "cancel"
     HELP_KEYWORD = "help"
+    
+    # Continue or not continue with messages
+    YES_KEYWORD = "y"
+    NO_KEYWORD = "n"
 
     def __init__(self, client):
         self.state = State.REPORT_START
@@ -45,8 +49,28 @@ class Report:
         if self.state == State.AWAITING_MESSAGE:
             return self.handle_message_link(message)
 
+<<<<<<< HEAD
+            # Here we've found the message - it's up to you to decide what to do next!
+            self.state = State.MESSAGE_IDENTIFIED
+
+            # keep track of the reported message
+            self.message = message
+
+            return ["I found this message:", "```" + message.author.name + ": " + message.content + "```", \
+                    "Would you like to continue? (y/n)"]
+        
+        if self.state == State.MESSAGE_IDENTIFIED:
+            if message.content == self.YES_KEYWORD:
+                self.state = State.REPORT_COMPLETE
+                return ["Ok, the message has been reported."]
+            elif message.content == self.NO_KEYWORD:
+                self.state = State.REPORT_START
+                self.message = None
+                return ["Thank you, your report request has been cancelled"]
+=======
         if self.state == State.MESSAGE_IDENTIFIED:
             return self.request_issue_category()
+>>>>>>> main
 
         elif self.state == State.AWAITING_ISSUE_CATEGORY:
             return self.request_specific_issue(message)
@@ -107,6 +131,8 @@ class Report:
     
     def report_complete(self):
         return self.state == State.REPORT_COMPLETE
+    
+        
     
 
 
