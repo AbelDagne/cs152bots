@@ -5,6 +5,8 @@ import os
 import json
 import logging
 import re
+from constants import UserResponse
+from image_flagger import flag_image
 import requests
 from report import Report
 from mod import ModReview
@@ -68,6 +70,19 @@ class ModBot(discord.Client):
         # Ignore messages from the bot 
         if message.author.id == self.user.id:
             return
+        
+        # Handle image attachments
+        if message.attachments:
+            for attachment in message.attachments:
+                if attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                    image_url = attachment.url
+                    result = flag_image(image_url)
+                    flagged = "yes" in result['choices'][0]['message']['content'].lower()
+                    reason = result['choices'][0]['message']['content']
+                    print(reason)
+                    if flagged:
+                        await self.handle_flagged_image(message, reason)
+                    return
 
         # Check if this message was sent in a server ("guild") or if it's a DM
         if message.guild:
@@ -148,13 +163,42 @@ class ModBot(discord.Client):
             self.active_review.pop(author_id)
             self.review_author = None
 
+    async def handle_flagged_image(self, message, reason):
+        author_id = message.author.id
+        author_dm_channel = message.channel
+        responses = []
+
+        # If we don't currently have an active report for this user, add one
+        if author_id not in self.reports:
+            self.reports[author_id] = Report(self)
+
+        # Create a new report for the flagged image
+        report_info = {
+            "reporter": message.author.name,
+            "image_url": message.attachments[0].url,
+            "reason": reason,
+            UserResponse.ABUSE_TYPE: 1,  # Misleading or False Information
+            UserResponse.SPEC_ISSUE: 2,  # Political Disinformation
+            UserResponse.SOURCE: author_dm_channel
+        }
+        self.reports[author_id].user_responses = report_info
+
+        # Forward the message to the mod channel for review
+        report_channel = self.mod_channels[message.guild.id]  # Use mod_channels for the channel
+        await self.handle_message_review(message, report_info, author_dm_channel, report_channel)
+        self.reports.pop(author_id)
     
     def eval_text(self, message):
         ''''
         TODO: Once you know how you want to evaluate messages in your channel, 
         insert your code here! This will primarily be used in Milestone 3. 
         '''
-        return message
+        scores = {
+            "spam": 0.1,
+            "offensive": 0.3,
+            "political": 0.8
+        }
+        return scores
 
     
     def code_format(self, text):

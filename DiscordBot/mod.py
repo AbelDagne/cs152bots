@@ -30,8 +30,15 @@ class ModReview:
         This function makes up the meat of the mod-side reporting flow. It defines how we transition between states and what 
         prompts to offer at each of those states. 
         '''
-        
         if self.state == State.MOD_START:
+            if "image_url" in self.report_info:
+                reply =  "A new image report has been flagged automatically.\n"
+                reply += f"Reason: {self.report_info['reason']}\n"
+                reply += f"Image URL: {self.report_info['image_url']}\n\n"
+                reply += "Please verify if this image contains political misinformation (y/n)"
+                self.state = State.AWAITING_CONFIRMATION
+                return [reply]
+                
             reported_abuse = self.report_info[UserResponse.ABUSE_TYPE]
             reported_abuse_desc = USER_REPORT_KEY[reported_abuse]["name"].lower()
             reported_specifics = self.report_info[UserResponse.SPEC_ISSUE]
