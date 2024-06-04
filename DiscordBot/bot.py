@@ -77,12 +77,33 @@ class ModBot(discord.Client):
                 if attachment.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
                     image_url = attachment.url
                     result = flag_image(image_url)
-                    flagged = "yes" in result['choices'][0]['message']['content'].lower()
-                    reason = result['choices'][0]['message']['content']
-                    print(reason)
+                    content = result['choices'][0]['message']['content']
+                    flagged = "yes" in content.lower()
+                    reason = content.split("reason: ")[1] if "reason: " in content else "No specific reason provided."
+                    
+                    abuse_type, specific_issue, source = 5, 4, "none"  # default values
+                    print(result)
+                   # Parse detailed response
                     if flagged:
-                        await self.handle_flagged_image(message, reason)
+                        parts = content.split("\n")
+                        for part in parts:
+                            part = part.strip()
+                            if part.startswith("1. Abuse type"):
+                                try:
+                                    abuse_type = int(re.findall(r'\d+', part)[0])
+                                except (IndexError, ValueError):
+                                    abuse_type = 5  # Default to other
+                            elif part.startswith("2. Specific issue"):
+                                try:
+                                    specific_issue = int(re.findall(r'\d+', part)[0])
+                                except (IndexError, ValueError):
+                                    specific_issue = 4  # Default to other
+                            elif part.startswith("3. Source"):
+                                source = part.split("Source: ")[1].strip() if "Source: " in part else "none"
+
+                        await self.handle_flagged_image(message, reason, abuse_type, specific_issue, source)
                     return
+
 
         # Check if this message was sent in a server ("guild") or if it's a DM
         if message.guild:
@@ -163,7 +184,7 @@ class ModBot(discord.Client):
             self.active_review.pop(author_id)
             self.review_author = None
 
-    async def handle_flagged_image(self, message, reason):
+    async def handle_flagged_image(self, message, reason, abuse_type, specific_issue, source):
         author_id = message.author.id
         author_dm_channel = message.channel
         responses = []
@@ -174,18 +195,17 @@ class ModBot(discord.Client):
 
         # Create a new report for the flagged image
         report_info = {
-            "reporter": message.author.name,
+            "reporter": 'auto',
             "image_url": message.attachments[0].url,
             "reason": reason,
-            UserResponse.ABUSE_TYPE: 1,  # Misleading or False Information
-            UserResponse.SPEC_ISSUE: 2,  # Political Disinformation
-            UserResponse.SOURCE: author_dm_channel
+            UserResponse.ABUSE_TYPE: abuse_type,  # Misleading or False Information
+            UserResponse.SPEC_ISSUE: specific_issue,  # Political Disinformation
+            UserResponse.SOURCE: source
         }
         self.reports[author_id].user_responses = report_info
 
         # Forward the message to the mod channel for review
-        report_channel = self.mod_channels[message.guild.id]  # Use mod_channels for the channel
-        await self.handle_message_review(message, report_info, author_dm_channel, report_channel)
+        await self.handle_message_review(message, report_info, author_dm_channel, author_dm_channel)
         self.reports.pop(author_id)
     
     def eval_text(self, message):
